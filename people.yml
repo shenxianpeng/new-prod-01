@@ -1,0 +1,23 @@
+people:
+  - id: sam_altman
+    name: Sam Altman
+    twitter_handle: sama
+    sources:
+      - type: twitter
+        enabled: true
+      - type: podcast    # V2
+        enabled: false
+
+  - id: dario_amodei
+    name: Dario Amodei
+    twitter_handle: DarioAmodei
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: andrej_karpathy
+    name: Andrej Karpathy
+    twitter_handle: karpathy
+    sources:
+      - type: twitter
+        enabled: true
