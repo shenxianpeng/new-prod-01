@@ -144,7 +144,7 @@ def fetch_tweets(handle: str, client: TweeterPy) -> list[dict]:
     返回格式：[{"id": str, "text": str, "created_at": str, "url": str}]
     """
     try:
-        response = client.get_user_tweets(handle, total=10, pagination=False)
+        response = client.get_user_tweets(handle, total=10)
         if not response or not response.get("data"):
             logger.warning(f"Twitter 用户未找到或无推文：@{handle}")
             return []
