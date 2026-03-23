@@ -289,6 +289,20 @@ def render_html(
     return template.render(entries=entries, date=today)
 
 
+def render_archive_index(
+    archive_dir: Path,
+    templates_dir: Path = TEMPLATES_DIR,
+) -> str:
+    """扫描 archive_dir 下所有 YYYY-MM-DD.html，生成存档索引页。"""
+    dates = sorted(
+        [p.stem for p in archive_dir.glob("????-??-??.html")],
+        reverse=True,
+    )
+    env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=True)
+    template = env.get_template("archive.html.j2")
+    return template.render(dates=dates)
+
+
 # ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
@@ -366,6 +380,9 @@ def main() -> None:
     html = render_html(entries, today)
     (DOCS_DIR / "index.html").write_text(html, encoding="utf-8")
     (ARCHIVE_DIR / f"{today}.html").write_text(html, encoding="utf-8")
+
+    archive_index = render_archive_index(ARCHIVE_DIR)
+    (ARCHIVE_DIR / "index.html").write_text(archive_index, encoding="utf-8")
 
     # 更新去重状态
     save_processed_ids(processed_ids | new_ids, PROCESSED_IDS_FILE)

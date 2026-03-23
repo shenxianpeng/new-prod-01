@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 领袖动态 · 历史存档</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #f7f7f8;
+      --surface:      #ffffff;
+      --border:       #e4e4e7;
+      --text:         #18181b;
+      --text-2:       #52525b;
+      --text-3:       #a1a1aa;
+      --accent:       #2563eb;
+      --accent-bg:    #eff6ff;
+      --shadow:       0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-hover: 0 4px 16px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                   "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 48px 20px 80px;
+    }
+
+    header { margin-bottom: 36px; }
+    header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -.4px;
+    }
+    .subtitle {
+      margin-top: 4px;
+      font-size: 13px;
+      color: var(--text-3);
+    }
+
+    .archive-list {
+      list-style: none;
+    }
+
+    .archive-list li {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      box-shadow: var(--shadow);
+      transition: box-shadow .18s ease;
+    }
+    .archive-list li:hover { box-shadow: var(--shadow-hover); }
+
+    .archive-list a {
+      display: block;
+      padding: 14px 18px;
+      font-size: 14px;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .archive-list a:hover { text-decoration: underline; }
+
+    .empty {
+      text-align: center;
+      padding: 80px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text-3);
+    }
+
+    footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-3);
+    }
+    footer a { color: var(--text-3); text-decoration: none; }
+    footer a:hover { color: var(--text-2); }
+
+    @media (max-width: 560px) {
+      .container { padding: 28px 16px 60px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>历史存档</h1>
+    <p class="subtitle">共 {{ dates|length }} 期 · <a href="../">返回首页</a></p>
+  </header>
+
+  {% if dates %}
+    <ul class="archive-list">
+      {% for d in dates %}
+      <li><a href="{{ d }}.html">{{ d }}</a></li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">暂无存档</div>
+  {% endif %}
+
+  <footer>
+    <a href="../">AI 领袖动态</a>
+  </footer>
+
+</div>
+</body>
+</html>
