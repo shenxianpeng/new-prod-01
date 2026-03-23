@@ -20,7 +20,7 @@ pytest 测试 — pipeline.py 核心函数
   test_fetch_tweets_skip_replies      — 过滤回复
   test_translate_success              — 正常翻译返回 title/summary/original
   test_translate_api_failure          — API 异常时返回 fallback dict
-  test_main_missing_anthropic_key     — 缺少 ANTHROPIC_API_KEY 时抛出 ValueError
+  test_main_missing_gemini_key        — 缺少 GEMINI_API_KEY 时抛出 ValueError
 """
 
 import json
@@ -343,9 +343,7 @@ def test_fetch_tweets_skip_replies():
 def test_translate_success():
     """正常翻译：返回含 title、summary、original 的字典。"""
     mock_client = MagicMock()
-    mock_content = MagicMock()
-    mock_content.text = "TITLE: AGI 近了\nSUMMARY: Altman 认为 AGI 比预期更近。"
-    mock_client.messages.create.return_value.content = [mock_content]
+    mock_client.models.generate_content.return_value.text = "TITLE: AGI 近了\nSUMMARY: Altman 认为 AGI 比预期更近。"
 
     tweet = {"id": "1", "text": "AGI is coming sooner than expected.", "created_at": "2026-03-22 09:00"}
     result = translate(tweet, mock_client)
@@ -358,7 +356,7 @@ def test_translate_success():
 def test_translate_api_failure():
     """API 异常时返回 fallback dict，不向上抛出。"""
     mock_client = MagicMock()
-    mock_client.messages.create.side_effect = Exception("api timeout")
+    mock_client.models.generate_content.side_effect = Exception("api timeout")
 
     tweet = {"id": "1", "text": "The original tweet text.", "created_at": "2026-03-22 09:00"}
     result = translate(tweet, mock_client)
@@ -372,9 +370,9 @@ def test_translate_api_failure():
 # main — 环境变量缺失检查
 # ---------------------------------------------------------------------------
 
-def test_main_missing_anthropic_key():
-    """缺少 ANTHROPIC_API_KEY 时抛出 ValueError。"""
+def test_main_missing_gemini_key():
+    """缺少 GEMINI_API_KEY 时抛出 ValueError。"""
     import os
     with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
+        with pytest.raises(ValueError, match="GEMINI_API_KEY"):
             main()
