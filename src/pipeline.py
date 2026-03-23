@@ -8,7 +8,7 @@ AI 领袖动态 — 每日自动抓取、翻译、发布到 GitHub Pages
   fetch_tweets()      ← TweeterPy (无需 Bearer Token，使用 Guest Session)
       │ new tweets only (去重: processed_ids.json)
       ▼
-  translate()         ← Claude Haiku (TITLE: / SUMMARY: 格式)
+  translate()         ← Gemini Flash (TITLE: / SUMMARY: 格式)
       │
       ▼
   render_html()       ← Jinja2 模板
@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
-import anthropic
+from google import genai
 import yaml
 from jinja2 import Environment, FileSystemLoader
 from tweeterpy import TweeterPy
@@ -206,23 +206,19 @@ def parse_llm_output(text: str, original: str) -> dict[str, str]:
     }
 
 
-def translate(tweet: dict, client: anthropic.Anthropic) -> dict[str, str]:
+def translate(tweet: dict, client: genai.Client) -> dict[str, str]:
     """
-    用 Claude Haiku 翻译一条推文。
+    用 Gemini Flash 翻译一条推文。
     API 失败时返回原文 fallback（不抛出异常）。
 
     返回格式：{"title": str, "summary": str, "original": str}
     """
     try:
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=300,
-            messages=[{
-                "role": "user",
-                "content": PROMPT_TEMPLATE.format(tweet_text=tweet["text"]),
-            }],
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=PROMPT_TEMPLATE.format(tweet_text=tweet["text"]),
         )
-        raw = message.content[0].text
+        raw = response.text
         parsed = parse_llm_output(raw, tweet["text"])
         return {**parsed, "original": tweet["text"]}
     except Exception as e:
@@ -254,13 +250,13 @@ def render_html(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("GEMINI_API_KEY")
 
     if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY 环境变量未设置")
+        raise ValueError("GEMINI_API_KEY 环境变量未设置")
 
     twitter_client = TweeterPy()
-    anthropic_client = anthropic.Anthropic(api_key=api_key)
+    gemini_client = genai.Client(api_key=api_key)
 
     people = load_config()
     processed_ids = load_processed_ids()
@@ -281,7 +277,7 @@ def main() -> None:
                 continue
 
             logger.info(f"  翻译推文 {tweet['id']}")
-            translated = translate(tweet, anthropic_client)
+            translated = translate(tweet, gemini_client)
 
             entries.append(TweetEntry(
                 tweet_id=tweet["id"],
