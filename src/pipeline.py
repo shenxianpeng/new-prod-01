@@ -56,7 +56,7 @@ TEMPLATES_DIR = ROOT / "templates"
 # Only consider tweets published within this many days of today.
 # This keeps each daily run focused on recent content and prevents the
 # ever-growing processed_ids.json from masking genuinely new tweets.
-LOOKBACK_DAYS = 3
+LOOKBACK_DAYS = 7
 
 # LLM prompt — 固定模板，稳定输出格式
 PROMPT_TEMPLATE = """\
