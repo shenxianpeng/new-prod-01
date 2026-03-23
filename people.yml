@@ -21,3 +21,164 @@ people:
     sources:
       - type: twitter
         enabled: true
+
+  - id: swyx
+    name: Swyx
+    twitter_handle: swyx
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: josh_woodward
+    name: Josh Woodward
+    twitter_handle: joshwoodward
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: kevin_weil
+    name: Kevin Weil
+    twitter_handle: kevinweil
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: peter_yang
+    name: Peter Yang
+    twitter_handle: petergyang
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: nan_yu
+    name: Nan Yu
+    twitter_handle: thenanyu
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: madhu_guru
+    name: Madhu Guru
+    twitter_handle: realmadhuguru
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: amanda_askell
+    name: Amanda Askell
+    twitter_handle: AmandaAskell
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: cat_wu
+    name: Cat Wu
+    twitter_handle: _catwu
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: thariq
+    name: Thariq
+    twitter_handle: trq212
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: google_labs
+    name: Google Labs
+    twitter_handle: GoogleLabs
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: amjad_masad
+    name: Amjad Masad
+    twitter_handle: amasad
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: guillermo_rauch
+    name: Guillermo Rauch
+    twitter_handle: rauchg
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: alex_albert
+    name: Alex Albert
+    twitter_handle: alexalbert__
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: aaron_levie
+    name: Aaron Levie
+    twitter_handle: levie
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: ryo_lu
+    name: Ryo Lu
+    twitter_handle: ryolu_
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: garry_tan
+    name: Garry Tan
+    twitter_handle: garrytan
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: matt_turck
+    name: Matt Turck
+    twitter_handle: mattturck
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: zara_zhang
+    name: Zara Zhang
+    twitter_handle: zarazhangrui
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: nikunj_kothari
+    name: Nikunj Kothari
+    twitter_handle: nikunj
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: peter_steinberger
+    name: Peter Steinberger
+    twitter_handle: steipete
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: dan_shipper
+    name: Dan Shipper
+    twitter_handle: danshipper
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: aditya_agarwal
+    name: Aditya Agarwal
+    twitter_handle: adityaag
+    sources:
+      - type: twitter
+        enabled: true
+
+  - id: claude_ai
+    name: Claude
+    twitter_handle: claudeai
+    sources:
+      - type: twitter
+        enabled: true
