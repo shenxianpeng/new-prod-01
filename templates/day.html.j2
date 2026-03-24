@@ -135,13 +135,42 @@
     /* ── Empty state ── */
     .empty {
       text-align: center;
-      padding: 80px 20px;
+      padding: 64px 24px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      font-size: 14px;
       color: var(--text-3);
     }
+    .empty-icon {
+      font-size: 28px;
+      margin-bottom: 12px;
+      opacity: .5;
+    }
+    .empty-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-2);
+      margin-bottom: 6px;
+    }
+    .empty-sub {
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+    .empty-action {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 0 16px;
+      background: var(--accent-bg);
+      color: var(--accent);
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background .15s;
+    }
+    .empty-action:hover { background: #fde8c0; }
 
     footer {
       margin-top: 40px;
@@ -196,7 +225,12 @@
     </article>
     {% endfor %}
   {% else %}
-    <div class="empty">今日无新内容</div>
+    <div class="empty">
+      <div class="empty-icon">📭</div>
+      <div class="empty-title">今日暂无新内容</div>
+      <div class="empty-sub">今天的 AI 领袖动态还未抓取，<br>或暂时没有新发布的内容。</div>
+      <a href="{{ archive_url }}" class="empty-action">查看历史存档 →</a>
+    </div>
   {% endif %}
 
   <footer>
