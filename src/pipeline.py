@@ -18,6 +18,7 @@ AI 领袖动态 — 每日自动抓取、翻译、发布到 GitHub Pages
   processed_ids.json  ← 更新去重状态（由 Actions 提交到 main）
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -26,7 +27,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from openai import OpenAI
+from copilot import CopilotClient, SubprocessConfig, PermissionHandler
 import yaml
 from jinja2 import Environment, FileSystemLoader
 from tweeterpy import TweeterPy
@@ -63,10 +64,11 @@ LOOKBACK_DAYS = 7
 # original tweets when a user's latest posts are mostly replies/retweets.
 FETCH_TWEETS_PER_USER = int(os.environ.get("TWEETS_PER_USER", "40"))
 
-# GitHub Copilot / GitHub Models 配置
-# 通过环境变量可覆盖模型名称，默认使用 gpt-4o-mini（免费额度内可用）
+# GitHub Copilot SDK 配置
+# 通过环境变量可覆盖模型名称，默认使用 gpt-4o-mini
 COPILOT_MODEL = os.environ.get("COPILOT_MODEL", "gpt-4o-mini")
-COPILOT_ENDPOINT = "https://models.inference.ai.azure.com"
+# 调试时可将 COPILOT_LOG_LEVEL 设为 "info" 以查看 Copilot CLI 输出
+COPILOT_LOG_LEVEL = os.environ.get("COPILOT_LOG_LEVEL", "error")
 
 # LLM prompt — 固定模板，稳定输出格式
 PROMPT_TEMPLATE = """\
@@ -274,9 +276,27 @@ def parse_llm_output(text: str, original: str) -> dict[str, str]:
     }
 
 
-def translate(tweet: dict, client: OpenAI) -> dict[str, str]:
+async def _do_translate(tweet_text: str, github_token: str) -> str:
     """
-    用 GitHub Copilot 模型翻译一条推文。
+    用 GitHub Copilot SDK 发起一次翻译请求，返回 LLM 的原始文本响应。
+    每次调用都会启动一个 Copilot CLI 进程并在结束时关闭。
+    """
+    config = SubprocessConfig(github_token=github_token, log_level=COPILOT_LOG_LEVEL)
+    async with CopilotClient(config) as client:
+        async with await client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            model=COPILOT_MODEL,
+        ) as session:
+            event = await session.send_and_wait(
+                PROMPT_TEMPLATE.format(tweet_text=tweet_text),
+                timeout=120.0,
+            )
+    return event.data.content if event and event.data.content else ""
+
+
+def translate(tweet: dict, github_token: str) -> dict[str, str]:
+    """
+    用 GitHub Copilot SDK 翻译一条推文。
     - 遇到 429 速率限制时自动等待 60 秒后重试，最多 3 次。
     - API 最终失败时返回原文 fallback（不抛出异常）。
 
@@ -290,11 +310,9 @@ def translate(tweet: dict, client: OpenAI) -> dict[str, str]:
 
     for attempt in range(3):
         try:
-            response = client.chat.completions.create(
-                model=COPILOT_MODEL,
-                messages=[{"role": "user", "content": PROMPT_TEMPLATE.format(tweet_text=tweet["text"])}],
-            )
-            raw = response.choices[0].message.content or ""
+            raw = asyncio.run(_do_translate(tweet["text"], github_token))
+            if not raw:
+                raise ValueError("Copilot 返回空响应")
             parsed = parse_llm_output(raw, tweet["text"])
             return {**parsed, "original": tweet["text"]}
         except Exception as e:
@@ -376,8 +394,6 @@ def main() -> None:
             " 请在 GitHub Secrets 中配置 TWITTER_AUTH_TOKEN 以获取最新推文。"
         )
 
-    copilot_client = OpenAI(base_url=COPILOT_ENDPOINT, api_key=github_token)
-
     people = load_config(PEOPLE_FILE)
     processed_ids = load_processed_ids(PROCESSED_IDS_FILE)
     today = date.today().isoformat()
@@ -418,7 +434,7 @@ def main() -> None:
                 continue
 
             logger.info(f"  翻译推文 {tweet['id']}")
-            translated = translate(tweet, copilot_client)
+            translated = translate(tweet, github_token)
 
             entries.append(TweetEntry(
                 tweet_id=tweet["id"],
