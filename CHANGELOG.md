@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1.0] - 2026-03-26
+
+### Changed
+- 设计系统全面更新（v2）：强调色从琥珀金 `#B8730A` 改为森林绿 `#15803D`，深色模式背景改为微绿近黑 `#0A0F0D`
+- 刊头字体从 Fraunces 衬线体改为 Clash Grotesk 几何粗体；正文字体从 Plus Jakarta Sans 改为 Source Sans 3
+- 美学方向从"精致编辑风"调整为"专业编辑 / 财经媒体感（Financial Times 风格）"
+- 配色方案从暖色中性调改为冷色中性调
+- 更新 CLAUDE.md 设计系统核心原则以匹配新设计规范
+
 ## [0.2.0.0] - 2026-03-22
 
 ### Added
