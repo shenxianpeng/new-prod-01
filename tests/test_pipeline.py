@@ -395,6 +395,43 @@ def test_fetch_tweets_skip_replies():
     assert result == []
 
 
+def test_fetch_tweets_full_text_is_list():
+    """tweeterpy 返回 full_text 为列表时，应取第一个元素正常处理。"""
+    mock_client = MagicMock()
+    mock_tweet = _make_tweet_item("111", ["AGI is near", "quoted tweet text"])
+
+    with patch("pipeline.Tweet", return_value=mock_tweet):
+        mock_client.get_user_tweets.return_value = {"data": [MagicMock()]}
+        result = fetch_tweets("sama", mock_client)
+
+    assert len(result) == 1
+    assert result[0]["text"] == "AGI is near"
+
+
+def test_fetch_tweets_full_text_list_is_retweet():
+    """full_text 为列表且第一个元素是转推时，应被过滤。"""
+    mock_client = MagicMock()
+    mock_tweet = _make_tweet_item("111", ["RT @someone: original", "original"])
+
+    with patch("pipeline.Tweet", return_value=mock_tweet):
+        mock_client.get_user_tweets.return_value = {"data": [MagicMock()]}
+        result = fetch_tweets("sama", mock_client)
+
+    assert result == []
+
+
+def test_fetch_tweets_in_reply_to_is_list():
+    """in_reply_to_status_id_str 为列表时，应跳过该回复推文。"""
+    mock_client = MagicMock()
+    mock_tweet = _make_tweet_item("111", "This is a reply", in_reply_to_status_id_str=["999"])
+
+    with patch("pipeline.Tweet", return_value=mock_tweet):
+        mock_client.get_user_tweets.return_value = {"data": [MagicMock()]}
+        result = fetch_tweets("sama", mock_client)
+
+    assert result == []
+
+
 # ---------------------------------------------------------------------------
 # translate
 # ---------------------------------------------------------------------------
