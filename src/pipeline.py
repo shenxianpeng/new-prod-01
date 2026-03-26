@@ -60,6 +60,10 @@ TEMPLATES_DIR = ROOT / "templates"
 # ever-growing processed_ids.json from masking genuinely new tweets.
 LOOKBACK_DAYS = 7
 
+# Pull a larger tweet window per account so that we can still find unseen
+# original tweets when a user's latest posts are mostly replies/retweets.
+FETCH_TWEETS_PER_USER = int(os.environ.get("TWEETS_PER_USER", "40"))
+
 # Gemini 免费 tier 限制：每分钟 5 次请求，间隔至少 12 秒
 _GEMINI_MIN_INTERVAL = 12.0  # seconds
 _last_gemini_request: float = 0.0
@@ -185,7 +189,7 @@ def fetch_tweets(handle: str, client: TweeterPy) -> list[dict]:
     返回格式：[{"id": str, "text": str, "created_at": str, "url": str}]
     """
     try:
-        response = client.get_user_tweets(handle, total=10)
+        response = client.get_user_tweets(handle, total=FETCH_TWEETS_PER_USER)
         if not response or not response.get("data"):
             logger.warning(f"Twitter 用户未找到或无推文：@{handle}")
             return []

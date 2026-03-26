@@ -326,6 +326,21 @@ def test_fetch_tweets_happy_path():
     assert "sama/status/111" in result[0]["url"]
 
 
+def test_fetch_tweets_uses_configured_total():
+    """抓取条数应使用 FETCH_TWEETS_PER_USER 配置。"""
+    mock_client = MagicMock()
+    mock_tweet = _make_tweet_item("111", "AGI is near")
+
+    with (
+        patch("pipeline.FETCH_TWEETS_PER_USER", 40),
+        patch("pipeline.Tweet", return_value=mock_tweet),
+    ):
+        mock_client.get_user_tweets.return_value = {"data": [MagicMock()]}
+        fetch_tweets("sama", mock_client)
+
+    mock_client.get_user_tweets.assert_called_once_with("sama", total=40)
+
+
 def test_fetch_tweets_user_not_found():
     """响应为空时返回空列表，不抛出异常。"""
     mock_client = MagicMock()
