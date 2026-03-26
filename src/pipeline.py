@@ -165,7 +165,7 @@ def load_processed_ids(path: Path = PROCESSED_IDS_FILE) -> set[str]:
 def save_processed_ids(ids: set[str], path: Path = PROCESSED_IDS_FILE) -> None:
     """持久化已处理的推文 ID（写入 JSON，由 GitHub Actions 提交到仓库）。"""
     with open(path, "w") as f:
-        json.dump({"ids": sorted(ids)}, f, indent=2, ensure_ascii=False)
+        json.dump({"ids": sorted(id for id in ids if id is not None)}, f, indent=2, ensure_ascii=False)
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +196,7 @@ def fetch_tweets(handle: str, client: TweeterPy) -> list[dict]:
 
         raw_count = len(response["data"])
         results = []
-        skipped_no_text = skipped_rt = skipped_reply = 0
+        skipped_no_text = skipped_no_id = skipped_rt = skipped_reply = 0
         for item in response["data"]:
             tweet = Tweet(item)
             # tweeterpy's find_nested_key() can return a list when a tweet
@@ -223,6 +223,9 @@ def fetch_tweets(handle: str, client: TweeterPy) -> list[dict]:
                 continue
 
             tweet_id = tweet.rest_id or tweet.id_str
+            if not tweet_id:
+                skipped_no_id += 1
+                continue
             results.append({
                 "id": tweet_id,
                 "text": full_text,
@@ -231,7 +234,7 @@ def fetch_tweets(handle: str, client: TweeterPy) -> list[dict]:
             })
 
         logger.info(
-            f"  @{handle}: 原始={raw_count}, 无文本={skipped_no_text}, "
+            f"  @{handle}: 原始={raw_count}, 无文本={skipped_no_text}, 无ID={skipped_no_id}, "
             f"转推={skipped_rt}, 回复={skipped_reply}, 有效={len(results)}"
         )
         return results

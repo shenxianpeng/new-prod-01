@@ -146,6 +146,19 @@ def test_save_and_reload_processed_ids(tmp_path):
     assert reloaded == original
 
 
+
+def test_save_processed_ids_with_none(tmp_path):
+    """None 值应被过滤，不引发 TypeError。"""
+    p = tmp_path / "processed_ids.json"
+    ids_with_none = {"aaa", None, "bbb"}
+
+    save_processed_ids(ids_with_none, p)
+    reloaded = load_processed_ids(p)
+
+    assert None not in reloaded
+    assert reloaded == {"aaa", "bbb"}
+
+
 # ---------------------------------------------------------------------------
 # parse_llm_output
 # ---------------------------------------------------------------------------
@@ -424,6 +437,19 @@ def test_fetch_tweets_in_reply_to_is_list():
     """in_reply_to_status_id_str 为列表时，应跳过该回复推文。"""
     mock_client = MagicMock()
     mock_tweet = _make_tweet_item("111", "This is a reply", in_reply_to_status_id_str=["999"])
+
+    with patch("pipeline.Tweet", return_value=mock_tweet):
+        mock_client.get_user_tweets.return_value = {"data": [MagicMock()]}
+        result = fetch_tweets("sama", mock_client)
+
+    assert result == []
+
+
+
+def test_fetch_tweets_skip_none_tweet_id():
+    """rest_id 和 id_str 均为 None 时，该推文应被跳过，不加入结果。"""
+    mock_client = MagicMock()
+    mock_tweet = _make_tweet_item(None, "AGI is near")
 
     with patch("pipeline.Tweet", return_value=mock_tweet):
         mock_client.get_user_tweets.return_value = {"data": [MagicMock()]}
