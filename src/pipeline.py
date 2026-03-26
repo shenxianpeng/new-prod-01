@@ -362,6 +362,22 @@ def main() -> None:
     twitter_client = TweeterPy(log_level="ERROR")
     logger.setLevel(logging.INFO)
 
+    # Authenticated sessions have access to the full current timeline.
+    # Guest sessions are limited to historical/cached data (~ Nov 2025 cutoff)
+    # which causes the pipeline to find 0 new tweets with a short lookback window.
+    # Set TWITTER_AUTH_TOKEN (GitHub Secret) to an auth_token cookie value from a
+    # logged-in Twitter/X session to unlock the real-time timeline.
+    twitter_auth_token = os.environ.get("TWITTER_AUTH_TOKEN")
+    if twitter_auth_token:
+        twitter_client.generate_session(auth_token=twitter_auth_token)
+        logger.info("Twitter 会话：已认证（TWITTER_AUTH_TOKEN 已配置）")
+    else:
+        logger.warning(
+            "TWITTER_AUTH_TOKEN 未设置，使用 Guest Session。"
+            " Guest Session 仅能访问约 2025-11 以前的历史推文，无法获取当前内容。"
+            " 请在 GitHub Secrets 中配置 TWITTER_AUTH_TOKEN 以获取最新推文。"
+        )
+
     gemini_client = genai.Client(api_key=api_key)
 
     people = load_config(PEOPLE_FILE)
@@ -377,6 +393,8 @@ def main() -> None:
 
     entries: list[TweetEntry] = []
     new_ids: set[str] = set()
+    total_skipped_ids = 0       # already in processed_ids
+    total_skipped_lookback = 0  # outside rolling lookback window
 
     for person in people:
         if not person.twitter_enabled:
@@ -387,16 +405,18 @@ def main() -> None:
 
         for tweet in tweets:
             if tweet["id"] in processed_ids:
+                total_skipped_ids += 1
                 continue
             # Skip tweets that fall outside the rolling lookback window so that
             # an ever-growing processed_ids.json does not cause all fetched tweets
             # to look "already processed" after a few pipeline runs.
             # Always process all tweets on the first run (processed_ids empty).
             if not is_first_run and not _is_within_lookback(tweet["created_at"]):
-                logger.debug(
+                logger.info(
                     f"  跳过推文 {tweet['id']}（日期 {tweet['created_at']} 超出 "
-                    f"{LOOKBACK_DAYS} 天窗口）"
+                    f"{LOOKBACK_DAYS} 天窗口）— 需配置 TWITTER_AUTH_TOKEN 以获取最新推文"
                 )
+                total_skipped_lookback += 1
                 continue
 
             logger.info(f"  翻译推文 {tweet['id']}")
@@ -433,6 +453,12 @@ def main() -> None:
 
     # 更新去重状态
     save_processed_ids(processed_ids | new_ids, PROCESSED_IDS_FILE)
+
+    if total_skipped_ids or total_skipped_lookback:
+        logger.info(
+            f"过滤摘要：{total_skipped_ids} 条已处理（processed_ids），"
+            f"{total_skipped_lookback} 条超出 {LOOKBACK_DAYS} 天窗口"
+        )
 
     logger.info(f"完成：{len(entries)} 条新内容，日期 {today}")
 

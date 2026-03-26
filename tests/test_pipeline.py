@@ -548,3 +548,85 @@ def test_main_subsequent_run_skips_old_tweets(tmp_path):
     # The old tweet should NOT have been added to processed_ids
     saved = load_processed_ids(ids_file)
     assert "888" not in saved, "后续运行应跳过超出 lookback 窗口的旧推文"
+
+
+# ---------------------------------------------------------------------------
+# main — TWITTER_AUTH_TOKEN 认证行为
+# ---------------------------------------------------------------------------
+
+def test_main_calls_generate_session_with_auth_token(tmp_path):
+    """设置 TWITTER_AUTH_TOKEN 时，main() 应调用 generate_session(auth_token=...)。"""
+    people_yml = {
+        "people": [{
+            "id": "test_user",
+            "name": "Test User",
+            "twitter_handle": "testuser",
+            "sources": [{"type": "twitter", "enabled": True}],
+        }]
+    }
+    people_file = tmp_path / "people.yml"
+    people_file.write_text(yaml.dump(people_yml), encoding="utf-8")
+    ids_file = tmp_path / "processed_ids.json"
+    ids_file.write_text(json.dumps({"ids": []}))
+
+    mock_twitter = MagicMock()
+    mock_twitter.get_user_tweets.return_value = {"data": []}
+    mock_gemini = MagicMock()
+
+    docs_dir = tmp_path / "docs"
+    archive_dir = docs_dir / "archive"
+
+    with (
+        patch("pipeline.PEOPLE_FILE", people_file),
+        patch("pipeline.PROCESSED_IDS_FILE", ids_file),
+        patch("pipeline.DOCS_DIR", docs_dir),
+        patch("pipeline.ARCHIVE_DIR", archive_dir),
+        patch("pipeline.TEMPLATES_DIR", TEMPLATES_DIR),
+        patch("pipeline.TweeterPy", return_value=mock_twitter),
+        patch("pipeline.genai.Client", return_value=mock_gemini),
+        patch.dict(os.environ, {"GEMINI_API_KEY": "fake-key", "TWITTER_AUTH_TOKEN": "my-secret-token"}),
+    ):
+        main()
+
+    mock_twitter.generate_session.assert_called_once_with(auth_token="my-secret-token")
+
+
+def test_main_no_auth_token_skips_generate_session(tmp_path):
+    """未设置 TWITTER_AUTH_TOKEN 时，main() 不应调用 generate_session。"""
+    people_yml = {
+        "people": [{
+            "id": "test_user",
+            "name": "Test User",
+            "twitter_handle": "testuser",
+            "sources": [{"type": "twitter", "enabled": True}],
+        }]
+    }
+    people_file = tmp_path / "people.yml"
+    people_file.write_text(yaml.dump(people_yml), encoding="utf-8")
+    ids_file = tmp_path / "processed_ids.json"
+    ids_file.write_text(json.dumps({"ids": []}))
+
+    mock_twitter = MagicMock()
+    mock_twitter.get_user_tweets.return_value = {"data": []}
+    mock_gemini = MagicMock()
+
+    docs_dir = tmp_path / "docs"
+    archive_dir = docs_dir / "archive"
+
+    # Remove TWITTER_AUTH_TOKEN from env entirely
+    env_without_token = {k: v for k, v in os.environ.items() if k != "TWITTER_AUTH_TOKEN"}
+    env_without_token["GEMINI_API_KEY"] = "fake-key"
+
+    with (
+        patch("pipeline.PEOPLE_FILE", people_file),
+        patch("pipeline.PROCESSED_IDS_FILE", ids_file),
+        patch("pipeline.DOCS_DIR", docs_dir),
+        patch("pipeline.ARCHIVE_DIR", archive_dir),
+        patch("pipeline.TEMPLATES_DIR", TEMPLATES_DIR),
+        patch("pipeline.TweeterPy", return_value=mock_twitter),
+        patch("pipeline.genai.Client", return_value=mock_gemini),
+        patch.dict(os.environ, env_without_token, clear=True),
+    ):
+        main()
+
+    mock_twitter.generate_session.assert_not_called()
