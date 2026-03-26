@@ -199,22 +199,33 @@ def fetch_tweets(handle: str, client: TweeterPy) -> list[dict]:
         skipped_no_text = skipped_rt = skipped_reply = 0
         for item in response["data"]:
             tweet = Tweet(item)
-            if not tweet.full_text:
+            # tweeterpy's find_nested_key() can return a list when a tweet
+            # contains nested tweet data (e.g. quoted tweets).  Normalise to
+            # a plain string by taking the first element so that downstream
+            # str operations like .startswith() don't raise TypeError.
+            full_text = tweet.full_text
+            if isinstance(full_text, list):
+                full_text = full_text[0] if full_text else None
+
+            if not full_text:
                 skipped_no_text += 1
                 continue
             # 排除转推
-            if tweet.full_text.startswith("RT @"):
+            if full_text.startswith("RT @"):
                 skipped_rt += 1
                 continue
-            # 排除回复
-            if tweet.in_reply_to_status_id_str:
+            # 排除回复 — in_reply_to_status_id_str may also be a list
+            reply_id = tweet.in_reply_to_status_id_str
+            if isinstance(reply_id, list):
+                reply_id = reply_id[0] if reply_id else None
+            if reply_id:
                 skipped_reply += 1
                 continue
 
             tweet_id = tweet.rest_id or tweet.id_str
             results.append({
                 "id": tweet_id,
-                "text": tweet.full_text,
+                "text": full_text,
                 "created_at": _parse_twitter_date(tweet.created_at),
                 "url": f"https://x.com/{handle}/status/{tweet_id}",
             })
