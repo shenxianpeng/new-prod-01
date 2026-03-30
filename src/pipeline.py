@@ -150,6 +150,7 @@ class TweetEntry:
     created_at: str
     title: str = ""
     summary: str = ""
+    twitter_handle: str = ""      # Twitter @handle（用于头像路径）
     context_text: str = ""        # 被引用/转发推文的内容（英文原文）
     context_author: str = ""      # 被引用/转发推文的作者 handle
     context_url: str = ""         # 被引用推文的链接
@@ -478,12 +479,13 @@ def render_html(
     entries: list[TweetEntry],
     today: str,
     archive_url: str = "archive/",
+    avatar_base: str = "avatars/",
     templates_dir: Path = TEMPLATES_DIR,
 ) -> str:
     """用 Jinja2 模板渲染 HTML。entries 为空时渲染空状态页面。"""
     env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=True)
     template = env.get_template("day.html.j2")
-    return template.render(entries=entries, date=today, archive_url=archive_url)
+    return template.render(entries=entries, date=today, archive_url=archive_url, avatar_base=avatar_base)
 
 
 def render_archive_index(
@@ -593,6 +595,7 @@ def main() -> None:
                 tweet_id=tweet["id"],
                 person_id=person.id,
                 person_name=person.name,
+                twitter_handle=person.twitter_handle,
                 original_text=tweet["text"],
                 tweet_url=tweet["url"],
                 created_at=tweet["created_at"],
@@ -613,11 +616,11 @@ def main() -> None:
     # Main page: archive link is "archive/" (relative to root)
     # Archive date page: archive link is "./" (current directory = archive/)
     (DOCS_DIR / "index.html").write_text(
-        render_html(entries, today, archive_url="archive/"), encoding="utf-8"
+        render_html(entries, today, archive_url="archive/", avatar_base="avatars/"), encoding="utf-8"
     )
     if entries:
         (ARCHIVE_DIR / f"{today}.html").write_text(
-            render_html(entries, today, archive_url="./"), encoding="utf-8"
+            render_html(entries, today, archive_url="./", avatar_base="../avatars/"), encoding="utf-8"
         )
 
     archive_index = render_archive_index(ARCHIVE_DIR)
