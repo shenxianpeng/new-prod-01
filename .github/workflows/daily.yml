@@ -46,6 +46,17 @@ jobs:
             fi
           done || true
 
+      - name: Restore cached avatars from gh-pages
+        run: |
+          mkdir -p docs/avatars
+          git ls-tree --name-only origin/gh-pages avatars/ 2>/dev/null | while read f; do
+            name=$(basename "$f")
+            git show origin/gh-pages:"$f" > "docs/avatars/$name" && echo "Restored avatar: $name"
+          done || true
+
+      - name: Download missing avatars
+        run: python scripts/fetch_avatars.py
+
       - name: Run pipeline
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -81,8 +92,10 @@ jobs:
           cp docs/index.html ./index.html
           mkdir -p archive
           [ -d docs/archive ] && cp -r docs/archive/. archive/ || true
+          mkdir -p avatars
+          [ -d docs/avatars ] && cp -r docs/avatars/. avatars/ || true
 
-          git add .nojekyll index.html archive/
+          git add .nojekyll index.html archive/ avatars/
           git diff --staged --quiet && echo "Nothing new to deploy" || \
             git commit -m "deploy: $(date +%Y-%m-%d)"
           git push origin gh-pages

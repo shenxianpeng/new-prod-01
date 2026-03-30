@@ -153,6 +153,10 @@
       flex-shrink: 0;
       letter-spacing: -.01em;
     }
+    img.avatar {
+      background: var(--surface-2);
+      object-fit: cover;
+    }
     .identity-info { flex: 1; min-width: 0; }
     .author-name {
       font-family: 'Clash Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -351,7 +355,12 @@
     {% for entry in entries %}
     <article class="card">
       <div class="card-identity">
+        {% if entry.twitter_handle %}
+        <img class="avatar" src="{{ avatar_base }}{{ entry.twitter_handle }}.jpg" alt="{{ entry.person_name[0] }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="avatar" style="display:none">{{ entry.person_name[0] }}</div>
+        {% else %}
         <div class="avatar">{{ entry.person_name[0] }}</div>
+        {% endif %}
         <div class="identity-info">
           <div class="author-name">{{ entry.person_name }}</div>
           <div class="author-meta">{{ entry.created_at }}</div>
