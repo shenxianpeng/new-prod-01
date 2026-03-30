@@ -29,7 +29,7 @@ import sys
 import textwrap
 from datetime import date, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -466,7 +466,7 @@ def test_translate_success():
     """正常翻译：返回含 title、summary、original 的字典。"""
     tweet = {"id": "1", "text": "AGI is coming sooner than expected.", "created_at": "2026-03-22 09:00"}
 
-    with patch("pipeline._do_translate", AsyncMock(return_value="TITLE: AGI 近了\nSUMMARY: Altman 认为 AGI 比预期更近。")):
+    with patch("pipeline._call_openai", return_value="[1]\nTITLE: AGI 近了\nSUMMARY: Altman 认为 AGI 比预期更近。"):
         result = translate(tweet, "fake-token")
 
     assert result["title"] == "AGI 近了"
@@ -478,7 +478,7 @@ def test_translate_api_failure():
     """API 异常时返回 fallback dict，不向上抛出。"""
     tweet = {"id": "1", "text": "The original tweet text.", "created_at": "2026-03-22 09:00"}
 
-    with patch("pipeline._do_translate", AsyncMock(side_effect=Exception("api timeout"))):
+    with patch("pipeline._call_openai", side_effect=Exception("api timeout")):
         result = translate(tweet, "fake-token")
 
     assert result["title"] == "（翻译失败）"
@@ -490,11 +490,11 @@ def test_translate_api_failure():
 # main — 环境变量缺失检查
 # ---------------------------------------------------------------------------
 
-def test_main_missing_github_token():
-    """缺少 GITHUB_TOKEN 时抛出 ValueError。"""
+def test_main_missing_openai_api_key():
+    """缺少 OPENAI_API_KEY 时抛出 ValueError。"""
     import os
     with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(ValueError, match="GITHUB_TOKEN"):
+        with pytest.raises(ValueError, match="OPENAI_API_KEY"):
             main()
 
 
@@ -554,8 +554,8 @@ def test_main_first_run_processes_old_tweets(tmp_path):
         patch("pipeline.ARCHIVE_DIR", archive_dir),
         patch("pipeline.TEMPLATES_DIR", TEMPLATES_DIR),
         patch("pipeline.TweeterPy", return_value=mock_twitter),
-        patch("pipeline._do_translate", AsyncMock(return_value="TITLE: 标题\nSUMMARY: 摘要")),
-        patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token"}),
+        patch("pipeline._call_openai", return_value="[1]\nTITLE: 标题\nSUMMARY: 摘要"),
+        patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"}),
     ):
         main()
 
@@ -597,8 +597,8 @@ def test_main_subsequent_run_skips_old_tweets(tmp_path):
         patch("pipeline.ARCHIVE_DIR", archive_dir),
         patch("pipeline.TEMPLATES_DIR", TEMPLATES_DIR),
         patch("pipeline.TweeterPy", return_value=mock_twitter),
-        patch("pipeline._do_translate", AsyncMock(return_value="TITLE: 标题\nSUMMARY: 摘要")),
-        patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token"}),
+        patch("pipeline._call_openai", return_value="[1]\nTITLE: 标题\nSUMMARY: 摘要"),
+        patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"}),
     ):
         main()
 
@@ -639,7 +639,7 @@ def test_main_calls_generate_session_with_auth_token(tmp_path):
         patch("pipeline.ARCHIVE_DIR", archive_dir),
         patch("pipeline.TEMPLATES_DIR", TEMPLATES_DIR),
         patch("pipeline.TweeterPy", return_value=mock_twitter),
-        patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token", "TWITTER_AUTH_TOKEN": "my-secret-token"}),
+        patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key", "TWITTER_AUTH_TOKEN": "my-secret-token"}),
     ):
         main()
 
@@ -669,7 +669,7 @@ def test_main_no_auth_token_skips_generate_session(tmp_path):
 
     # Remove TWITTER_AUTH_TOKEN from env entirely
     env_without_token = {k: v for k, v in os.environ.items() if k != "TWITTER_AUTH_TOKEN"}
-    env_without_token["GITHUB_TOKEN"] = "fake-token"
+    env_without_token["OPENAI_API_KEY"] = "fake-key"
 
     with (
         patch("pipeline.PEOPLE_FILE", people_file),
