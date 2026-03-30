@@ -8,7 +8,7 @@ AI 领袖动态 — 每日自动抓取、翻译、发布到 GitHub Pages
   fetch_tweets()      ← TweeterPy (无需 Bearer Token，使用 Guest Session)
       │ new tweets only (去重: processed_ids.json + LOOKBACK_DAYS 窗口)
       ▼
-  translate()         ← GitHub Copilot 模型 (TITLE: / SUMMARY: 格式)
+  translate_batch()   ← OpenAI API (gpt-4o-mini，批量翻译降低调用次数)
       │
       ▼
   render_html()       ← Jinja2 模板
@@ -18,16 +18,16 @@ AI 领袖动态 — 每日自动抓取、翻译、发布到 GitHub Pages
   processed_ids.json  ← 更新去重状态（由 Actions 提交到 main）
 """
 
-import asyncio
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from copilot import CopilotClient, SubprocessConfig, PermissionHandler
+from openai import OpenAI
 import yaml
 from jinja2 import Environment, FileSystemLoader
 from tweeterpy import TweeterPy
@@ -64,22 +64,27 @@ LOOKBACK_DAYS = 7
 # original tweets when a user's latest posts are mostly replies/retweets.
 FETCH_TWEETS_PER_USER = int(os.environ.get("TWEETS_PER_USER", "40"))
 
-# GitHub Copilot SDK 配置
-# 通过环境变量可覆盖模型名称，默认使用 gpt-4o-mini
-COPILOT_MODEL = os.environ.get("COPILOT_MODEL", "gpt-4o-mini")
-# 调试时可将 COPILOT_LOG_LEVEL 设为 "info" 以查看 Copilot CLI 输出
-COPILOT_LOG_LEVEL = os.environ.get("COPILOT_LOG_LEVEL", "error")
+# OpenAI 配置
+# gpt-4o-mini 具有较高的速率限制配额，适合批量翻译场景
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+# 每批翻译的推文数量（减少 API 调用次数，降低触发速率限制的风险）
+TRANSLATE_BATCH_SIZE = int(os.environ.get("TRANSLATE_BATCH_SIZE", "10"))
 
-# LLM prompt — 固定模板，稳定输出格式
-PROMPT_TEMPLATE = """\
-将以下推文翻译成中文。
+# 批量翻译 prompt — 一次 API 调用处理多条推文
+BATCH_PROMPT_TEMPLATE = """\
+将以下 {n} 条推文分别翻译成中文。
 
-格式要求（必须严格遵守，不要添加任何前缀或额外文字）：
-TITLE: [一句话核心观点，不超过 20 字]
-SUMMARY: [中文翻译，保留原意，不超过 100 字]
+格式要求（严格按编号顺序输出，每条用 [编号] 分隔，不添加任何额外文字）：
+[1]
+TITLE: 一句话核心观点（不超过 20 字）
+SUMMARY: 中文翻译（保留原意，不超过 100 字）
+
+[2]
+TITLE: ...
+SUMMARY: ...
 
 推文原文：
-{tweet_text}"""
+{tweets}"""
 
 
 # ---------------------------------------------------------------------------
@@ -276,55 +281,102 @@ def parse_llm_output(text: str, original: str) -> dict[str, str]:
     }
 
 
-async def _do_translate(tweet_text: str, github_token: str) -> str:
+def _call_openai(prompt: str, api_key: str) -> str:
     """
-    用 GitHub Copilot SDK 发起一次翻译请求，返回 LLM 的原始文本响应。
-    每次调用都会启动一个 Copilot CLI 进程并在结束时关闭。
+    调用 OpenAI Chat Completions API，返回模型的原始文本响应。
+    此函数是可 mock 的最小单元，不含重试逻辑。
     """
-    config = SubprocessConfig(github_token=github_token, log_level=COPILOT_LOG_LEVEL)
-    async with CopilotClient(config) as client:
-        async with await client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            model=COPILOT_MODEL,
-        ) as session:
-            event = await session.send_and_wait(
-                PROMPT_TEMPLATE.format(tweet_text=tweet_text),
-                timeout=120.0,
-            )
-    return event.data.content if event and event.data.content else ""
+    client = OpenAI(api_key=api_key)
+    response = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        timeout=120,
+    )
+    return response.choices[0].message.content or ""
 
 
-def translate(tweet: dict, github_token: str) -> dict[str, str]:
+def _parse_batch_response(text: str, tweets: list[dict]) -> list[dict[str, str]]:
     """
-    用 GitHub Copilot SDK 翻译一条推文。
+    解析批量翻译响应，按 [编号] 标记拆分并提取各条推文的 TITLE/SUMMARY。
+    同时兼容 LLM 可能返回的中文全角括号 【编号】。
+    任何缺失条目均使用原文 fallback。
+    """
+    parts = re.split(r'[\[【](\d+)[\]】]', text.strip())
+    # parts: ['preamble', '1', 'content1', '2', 'content2', ...]
+
+    section_map: dict[int, str] = {}
+    for i in range(1, len(parts), 2):
+        try:
+            idx = int(parts[i])
+            content = parts[i + 1] if i + 1 < len(parts) else ""
+            section_map[idx] = content.strip()
+        except (ValueError, IndexError):
+            continue
+
+    results = []
+    for i, tweet in enumerate(tweets):
+        num = i + 1
+        content = section_map.get(num, "")
+        if content:
+            parsed = parse_llm_output(content, tweet["text"])
+        else:
+            logger.warning(f"批量翻译：第 {num} 条结果缺失，使用原文 fallback")
+            parsed = {"title": "（翻译失败）", "summary": tweet["text"]}
+        results.append({**parsed, "original": tweet["text"]})
+
+    return results
+
+
+def translate_batch(tweets: list[dict], api_key: str) -> list[dict[str, str]]:
+    """
+    用 OpenAI API 批量翻译推文（一次 API 调用处理多条，显著减少调用次数）。
     - 遇到 429 速率限制时自动等待 60 秒后重试，最多 3 次。
-    - API 最终失败时返回原文 fallback（不抛出异常）。
+    - API 最终失败时所有条目返回原文 fallback，不抛出异常。
 
-    返回格式：{"title": str, "summary": str, "original": str}
+    返回格式：[{"title": str, "summary": str, "original": str}, ...]，顺序与输入一致。
     """
-    fallback = {
-        "title": "（翻译失败）",
-        "summary": tweet["text"],
-        "original": tweet["text"],
-    }
+    if not tweets:
+        return []
+
+    fallback_results = [
+        {"title": "（翻译失败）", "summary": t["text"], "original": t["text"]}
+        for t in tweets
+    ]
+
+    tweets_block = "\n\n".join(f"[{i + 1}]\n{t['text']}" for i, t in enumerate(tweets))
+    prompt = BATCH_PROMPT_TEMPLATE.format(n=len(tweets), tweets=tweets_block)
 
     for attempt in range(3):
         try:
-            raw = asyncio.run(_do_translate(tweet["text"], github_token))
+            raw = _call_openai(prompt, api_key)
             if not raw:
-                raise ValueError("Copilot 返回空响应")
-            parsed = parse_llm_output(raw, tweet["text"])
-            return {**parsed, "original": tweet["text"]}
+                raise ValueError("OpenAI 返回空响应")
+            return _parse_batch_response(raw, tweets)
         except Exception as e:
             error_str = str(e)
             if "429" in error_str and attempt < 2:
                 logger.warning(f"  触发速率限制，等待 60s 后重试（第 {attempt + 1} 次）…")
                 time.sleep(60)
             else:
-                logger.warning(f"LLM 翻译失败（使用原文 fallback）：{e}")
-                return fallback
+                logger.warning(f"批量翻译失败（使用原文 fallback）：{e}")
+                return fallback_results
 
-    return fallback
+    return fallback_results
+
+
+def translate(tweet: dict, api_key: str) -> dict[str, str]:
+    """
+    翻译单条推文（translate_batch 的单条包装，保留此接口以便测试调用）。
+
+    返回格式：{"title": str, "summary": str, "original": str}
+    """
+    results = translate_batch([tweet], api_key)
+    return results[0] if results else {
+        "title": "（翻译失败）",
+        "summary": tweet["text"],
+        "original": tweet["text"],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -362,10 +414,10 @@ def render_archive_index(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    github_token = os.environ.get("GITHUB_TOKEN")
+    openai_api_key = os.environ.get("OPENAI_API_KEY")
 
-    if not github_token:
-        raise ValueError("GITHUB_TOKEN 环境变量未设置")
+    if not openai_api_key:
+        raise ValueError("OPENAI_API_KEY 环境变量未设置")
 
     # log_level="CRITICAL" suppresses TweeterPy's INFO/WARNING/ERROR noise
     # (including the harmless "[Errno 2] No such file or directory: '/tmp/tweeterpy_api.json'"
@@ -410,6 +462,8 @@ def main() -> None:
     total_skipped_ids = 0       # already in processed_ids
     total_skipped_lookback = 0  # outside rolling lookback window
 
+    # Phase 1: fetch and filter tweets from all people
+    pending: list[tuple] = []  # [(person, tweet), ...]
     for person in people:
         if not person.twitter_enabled:
             continue
@@ -432,10 +486,18 @@ def main() -> None:
                 )
                 total_skipped_lookback += 1
                 continue
+            pending.append((person, tweet))
 
-            logger.info(f"  翻译推文 {tweet['id']}")
-            translated = translate(tweet, github_token)
+    # Phase 2: batch translate all pending tweets to minimise API calls
+    for batch_start in range(0, len(pending), TRANSLATE_BATCH_SIZE):
+        batch = pending[batch_start:batch_start + TRANSLATE_BATCH_SIZE]
+        batch_num = batch_start // TRANSLATE_BATCH_SIZE + 1
+        logger.info(f"批量翻译第 {batch_num} 批（{len(batch)} 条）…")
 
+        tweet_batch = [t for _, t in batch]
+        translations = translate_batch(tweet_batch, openai_api_key)
+
+        for (person, tweet), translated in zip(batch, translations):
             entries.append(TweetEntry(
                 tweet_id=tweet["id"],
                 person_id=person.id,
